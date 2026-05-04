@@ -12,3 +12,35 @@ df %>%
        x = "Edad de Inicio",
        y = "Cantidad de Personas") +
   theme_minimal()
+
+df %>%
+  filter(!is.na(SEXO_SEL)) %>%
+  ggplot(aes(x = as.factor(SEXO_SEL), fill = as.factor(SEXO_SEL))) +
+  geom_bar() +
+  scale_x_discrete(labels = c("1" = "Varón", "2" = "Mujer")) +
+  labs(title = "Distribución por Sexo", x = "Sexo", y = "Frecuencia") +
+  theme_minimal() +
+  guides(fill = "none")
+
+ggplot(df, aes(x = EDAD_SEL)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "white") +
+  labs(title = "Distribución de Edades de la Muestra",
+       x = "Edad (EDAD_SEL)",
+       y = "Frecuencia") +
+  theme_minimal()
+
+df %>%
+  filter(AL06_TRAGOS_TOTAL > 0 & AL06_TRAGOS_TOTAL < 50) %>%
+  ggplot(aes(y = AL06_TRAGOS_TOTAL)) +
+  geom_boxplot(fill = "tomato", alpha = 0.7) +
+  labs(title = "Dispersión de Tragos Totales",
+       subtitle = "(Filtrado: menos de 50 tragos)",
+       y = "Cantidad de Tragos") +
+  theme_light()
+
+ggplot(df, aes(x = CANT_MIEMBROS_HOGAR)) +
+  geom_bar(fill = "purple", alpha = 0.7) +
+  labs(title = "Cantidad de Miembros en el Hogar",
+       x = "Número de Personas",
+       y = "Frecuencia") +
+  theme_minimal()
