@@ -44,3 +44,13 @@ ggplot(df, aes(x = CANT_MIEMBROS_HOGAR)) +
        x = "Número de Personas",
        y = "Frecuencia") +
   theme_minimal()
+
+base <- base %>%
+  mutate(cant_personas_14A64 = CANT_MIEMBROS_HOGAR - CANT_PERSONAS0A17)
+base <- base %>%
+  mutate(AL03_EDAD_INICIO = ifelse(AL_03>=999,NA, AL_03))
+summary(base$cant_personas_14A64)
+summary(base$SEXO_SEL)
+summary(base$EDAD_SEL)
+summary(base$AL03_EDAD_INICIO)
+summary(base$AL06_TRAGOS_TOTAL)
