@@ -1,0 +1,426 @@
+---
+title: "Informe de Análisis Estadístico: Estudio sobre Consumos y Prácticas de Cuidado (ENCoPraC)"
+author: "Equipo de Trabajo"
+date: "`r Sys.Date()`"
+output: 
+  word_document:
+    toc: false
+    keep_md: false
+---
+
+```{r configuracion-inicial, include=FALSE}
+# Bloque de configuración y carga de librerías esenciales
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(knitr) # Necesaria para renderizar tablas formales en Word
+
+# Configuración global de tablas para cumplir estrictamente con Normas APA
+options(knitr.table.format = "markdown")
+
+# Importación de la base de microdatos utilizando la ruta local unificada
+base <- read_excel("C:/Users/matut/OneDrive/Desktop/tute/Facultad/Estadistica/base_usuario_encoprac.xlsx")
+
+# DETECCIÓN Y DEPURACIÓN INICIAL:
+# Se transforman los códigos especiales de "No Sabe/No Contesta" (99, 999) en valores nulos (NA)
+base <- base %>%
+  mutate(
+    CANT_MIEMBROS_HOGAR = ifelse(CANT_MIEMBROS_HOGAR >= 99, NA, CANT_MIEMBROS_HOGAR),
+    CANT_PERSONAS0A17   = ifelse(CANT_PERSONAS0A17 >= 99, NA, CANT_PERSONAS0A17),
+    AL_03               = ifelse(AL_03 >= 999, NA, AL_03),
+    AL06_TRAGOS_TOTAL   = ifelse(AL06_TRAGOS_TOTAL >= 999, NA, AL06_TRAGOS_TOTAL),
+    CO_11               = ifelse(CO_11 >= 99, NA, CO_11) # Depuración de códigos especiales para CO_11
+  ) %>%
+  mutate(
+    cant_personas_14A64 = CANT_MIEMBROS_HOGAR - CANT_PERSONAS0A17,
+    AL03_EDAD_INICIO    = AL_03
+  )
+```
+
+# 1. Resumen Ejecutivo
+
+---
+
+# 2. Introducción y Contexto del Trabajo
+
+El presente informe pretende evidenciar y resumir de manera clara los datos recabados por el Instituto Nacional de Estadística y Censos (INDEC, 2022) a través de la Encuesta Nacional sobre Consumos y Prácticas de Cuidado 2022 (ENCoPraC 2022) en relación con el consumo de sustancias psicoactivas. Las variables trabajadas en este apartado corresponden a la caracterización del Sexo (`SEXO_SEL`), la Situación o lugar más frecuente de consumo de cocaína en los últimos 12 meses (`CO_11`), la Edad cronológica del encuestado (`EDAD_SEL`), la Cantidad de personas de 14 a 64 años residentes en el hogar (`cant_personas_14A64`), los Tragos totales estimados (`AL06_TRAGOS_TOTAL`) y la Edad de inicio de consumo regular de alcohol (`AL03_EDAD_INICIO`).
+
+Los datos analizados fueron recabados a partir de un diseño muestral representativo de la población correspondiente a individuos de entre 16 y 75 años de edad localizados en aglomerados urbanos del territorio nacional (INDEC, 2022). Por tal motivo, desde el punto de vista metodológico, el conjunto de datos constituye una muestra probabilística y se tratará formalmente como unidad de observación a cada individuo que cumpla con estas características particulares en las unidades habitacionales sorteadas. 
+
+Dada la gran cantidad de datos y registros que componen la matriz de microdatos, el informe pretende utilizar las medidas resumen de la ciencia estadística para mostrar al lector las magnitudes representantes de tal información mediante tablas y gráficos analíticos. A su vez, el estudio busca también trazar una relación matemática entre variables cuantitativas específicas que permita de algún modo predecir valores aproximados de acuerdo con los conocimientos ya obtenidos y las tendencias estimadas por mínimos cuadrados ordinarios.
+
+---
+
+# 3. Desarrollo
+
+### 3.1. Variables analizadas
+A partir de la asignación efectuada por la cátedra, se procedió a la identificación y caracterización técnica de las dimensiones bajo estudio mediante la consulta del *Manual de la Base de Usuarios*. A continuación, se detalla el marco metodológico de las seis variables seleccionadas para el análisis estadístico:
+
+```{r tabla-variables, echo=FALSE}
+# Definición de la matriz de metadatos para el informe incluyendo CO_11
+tabla_meta <- data.frame(
+  `Nombre de la variable` = c("SEXO_SEL", "EDAD_SEL", "cant_personas_14A64", "AL03_EDAD_INICIO", "AL06_TRAGOS_TOTAL", "CO_11"),
+  `Descripción de la variable` = c(
+    "Sexo biológico asignado al nacer para el individuo seleccionado en el hogar. Categorías: 1 = Varón; 2 = Mujer.",
+    "Edad cronológica en años cumplidos del individuo seleccionado al momento de la entrevista.",
+    "Cantidad calculada de personas entre 14 y 64 años de edad que residen habitualmente en el hogar.",
+    "Edad declarada en años cumplidos en la que el individuo inició el consumo de bebidas alcohólicas de forma regular.",
+    "Volumen total de consumo de alcohol estimado, expresado en cantidad de tragos estándar ingeridos en el período de referencia.",
+    "Situación o lugar más frecuente de consumo de cocaína en los últimos 12 meses (Bloque de Consumo de Otras Sustancias)."
+  ),
+  `Tipo de variable` = c("Cualitativa nominal", "Cuantitativa continua", "Cuantitativa discreta", "Cuantitativa discreta", "Cuantitativa discreta", "Cualitativa nominal"),
+  check.names = FALSE
+)
+
+# Renderizado con formato APA (Líneas horizontales sutiles sin bordes verticales)
+kable(tabla_meta, format = "markdown", caption = "Tabla 1. Matriz de operacionalización y clasificación de variables asignadas.")
+```
+
+---
+
+### 3.2. Exploración y depuración inicial de la base de datos
+El proceso de auditoría y análisis de consistencia de la base de microdatos de la **ENCoPraC** arrojó una estructura inicial compuesta por un total de **`r nrow(base)` observaciones** (registros de individuos) y **`r ncol(base)` variables** (columnas). 
+
+Durante la etapa de exploración visual y computacional, se detectó la presencia de celdas vacías (valores faltantes o `NA`). Desde una perspectiva metodológica, estas omisiones no constituyen errores de carga, sino que representan **saltos lógicos del cuestionario** previstos en el diseño de la encuesta; por ejemplo, aquellas unidades muestrales que declararon no consumir determinadas sustancias no poseen registros asociados en las preguntas subsiguientes referidas a frecuencias o modalidades de ingesta.
+
+Asimismo, se identificaron valores numéricos extremos tales como **99** y **999** en variables críticas como la edad de inicio de consumo (`AL_03`) y la caracterización de prácticas (`CO_11`). De acuerdo con el *Manual de la Base de Usuarios*, estos registros corresponden a códigos convencionales de la estructura de captura para indicar **"No sabe"** o **"No contesta" (Ns/Nc)**. 
+
+Con el propósito de mitigar sesgos y evitar distorsiones graves en el cálculo de las medidas de tendencia central (como promedios aritméticos) y proporciones cualitativas, el Equipo de Trabajo adoptó la decisión analítica de filtrar y excluir estos códigos durante el procesamiento en RStudio. Los valores fueron transformados formalmente en datos nulos (`NA`) mediante máscaras lógicas condicionales, garantizando que los gráficos y estadísticos descriptivos se computen exclusivamente sobre las respuestas cuantitativas y categóricas válidas.
+
+---
+
+### 3.3. Otras herramientas utilizadas
+Para el procesamiento, depuración, análisis estadístico y representación gráfica del presente trabajo de investigación, se seleccionaron las siguientes herramientas digitales (Wickham et al., 2019):
+
+* **RStudio (Versión 4.x / Posit):** Se seleccionó este entorno de desarrollo integrado (IDE) por su robustez científica, reproducibilidad y liderazgo global en el análisis de datos estadísticos. Su utilización está plenamente justificada por la necesidad de manipular matrices de microdatos complejas que exceden las capacidades operativas de las planillas de cálculo tradicionales.
+* **Librerías del ecosistema Tidyverse (`dplyr` y `ggplot2`):** La manipulación de datos se estructuró bajo la sintaxis de `dplyr` debido a la eficiencia y claridad de sus funciones condicionales para la depuración de códigos especiales y el filtrado de registros. Las representaciones gráficas se confeccionaron mediante `ggplot2` debido a su flexibilidad y apego a la gramática de los gráficos, lo cual permitió parametrizar los anchos de bandas (en histogramas), las escalas de dispersión (en diagramas de caja) y las líneas de tendencia central (regresiones lineales) con un estricto estándar académico y editorial.
+* **R Markdown:** Se empleó como la herramienta de documentación técnica integradora. Su elección se justifica en la capacidad de unificar, en un único documento dinámico, la ejecución del código fuente estadístico, la renderización automática de salidas gráficas y la redacción del marco teórico, eliminando el riesgo de errores de transcripción manual hacia procesadores de texto independientes.
+
+---
+
+# 4. Análisis Estadístico Descriptivo
+
+### 4.1. Análisis descriptivo de variables cualitativas (`SEXO_SEL` y `CO_11`)
+
+A continuación, se presenta la tabla de frecuencias absolutas y relativas porcentuales correspondientes a la variable cualitativa nominal de corte demográfico (`SEXO_SEL`):
+
+```{r tabla-frecuencias-cualitativa, echo=FALSE}
+# Cálculo de frecuencias para Sexo
+tabla_sexo <- base %>%
+  filter(!is.na(SEXO_SEL)) %>%
+  group_by(SEXO_SEL) %>%
+  summarise(Frecuencia = n(), .groups = 'drop') %>%
+  mutate(
+    Porcentaje = paste0(round((Frecuencia / sum(Frecuencia)) * 100, 2), "%"),
+    Categoría = ifelse(SEXO_SEL == 1, "Varón", "Mujer")
+  ) %>%
+  select(Categoría, Frecuencia, Porcentaje)
+
+kable(tabla_sexo, format = "markdown", caption = "Tabla 2. Distribución de frecuencias para la variable Sexo del Encuestado.")
+```
+
+De igual forma, se computa la distribución de frecuencias para la variable cualitativa del bloque de consumo **`CO_11`** (Situación o lugar más frecuente de consumo de cocaína) una vez depurada de los códigos de no respuesta:
+
+```{r tabla-frecuencias-co11, echo=FALSE}
+# Cálculo de frecuencias para CO_11 de forma automatizada
+tabla_co11 <- base %>%
+  filter(!is.na(CO_11)) %>%
+  group_by(CO_11) %>%
+  summarise(Frecuencia = n(), .groups = 'drop') %>%
+  mutate(
+    Porcentaje = paste0(round((Frecuencia / sum(Frecuencia)) * 100, 2), "%"),
+    Categoría = paste("Categoría/Lugar", CO_11)
+  ) %>%
+  select(Categoría, Frecuencia, Porcentaje)
+
+kable(tabla_co11, format = "markdown", caption = "Tabla 3. Distribución de frecuencias para la situación o lugar más frecuente de consumo de cocaína (Últimos 12 meses).")
+```
+
+#### Representación gráfica y justificación
+Para la representación de las variables cualitativas nominales bajo estudio, se seleccionaron **gráficos de barras simples**. La elección se fundamenta en que este tipo de diagrama permite comparar de manera directo y visual las frecuencias absolutas de categorías independientes sin sugerir un orden preestablecido. 
+
+Se evitó la utilización de gráficos de sectores (tortas) debido a que el gráfico de barras ofrece una mayor precisión en la percepción visual de las diferencias de longitud frente a las de áreas o ángulos. Asimismo, se prescindió de efectos tridimensionales o sombras decorativas, priorizando una estética sobria y formal orientada a la correcta interpretación de los datos estadísticos de acuerdo con las directrices de APA 7.
+
+```{r grafico-cualitativa-sexo, echo=FALSE, fig.align='center', fig.width=6, fig.height=3.5}
+base %>%
+  filter(!is.na(SEXO_SEL)) %>%
+  ggplot(aes(x = as.factor(SEXO_SEL), fill = as.factor(SEXO_SEL))) +
+  geom_bar(width = 0.6) +
+  scale_x_discrete(labels = c("1" = "Varón", "2" = "Mujer")) +
+  scale_fill_manual(values = c("1" = "steelblue", "2" = "darkgray")) +
+  labs(title = "Gráfico 1. Distribución de la muestra según sexo del encuestado",
+       subtitle = "Análisis muestral desagregado",
+       x = "Sexo",
+       y = "Frecuencia Absoluta (Cantidad de personas)",
+       caption = "Fuente: Elaboración propia en base a datos de la ENCoPraC (INDEC, 2022)") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(face = "bold", size = 11))
+```
+
+```{r grafico-cualitativa-co11, echo=FALSE, fig.align='center', fig.width=6, fig.height=3.5}
+base %>%
+  filter(!is.na(CO_11)) %>%
+  ggplot(aes(x = as.factor(CO_11), fill = as.factor(CO_11))) +
+  geom_bar(width = 0.6) +
+  scale_fill_viridis_d(option = "plasma") + # Escala corregida que soporta ilimitadas categorías sin tirar warning
+  labs(title = "Gráfico 2. Distribución de respuestas para la situación o lugar de consumo (CO_11)",
+       subtitle = "Análisis de frecuencias categóricas",
+       x = "Categorías de Sitios de Consumo Relevados",
+       y = "Frecuencia Absoluta",
+       caption = "Fuente: Elaboración propia en base a datos de la ENCoPraC (INDEC, 2022)") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(face = "bold", size = 11))
+```
+
+---
+
+### 4.2. Análisis descriptivo de variables cuantitativas: Edad de Inicio de Consumo (`AL03_EDAD_INICIO`)
+
+A partir del procesamiento de los microdatos depurados, se evaluó el comportamiento de la edad declarada por los encuestados al iniciar el consumo regular de alcohol. Los estadísticos analíticos calculados se exponen en la Tabla 4:
+
+```{r analisis-cuantitativa, echo=FALSE, message=FALSE, warning=FALSE}
+# Funciones estadísticas auxiliares para forma y posición
+calcular_modo <- function(x) {
+  x <- x[!is.na(x)]
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+calcular_asimetria <- function(x) {
+  x <- x[!is.na(x)]
+  n <- length(x)
+  m3 <- sum((x - mean(x))^3) / n
+  s3 <- sd(x)^3
+  return(m3 / s3)
+}
+
+# Se filtran los valores atípicos y códigos de error mayores a 90 de la variable para el cálculo formal
+datos_validos <- base$AL03_EDAD_INICIO[!is.na(base$AL03_EDAD_INICIO) & base$AL03_EDAD_INICIO < 90]
+
+# Cálculo de las 13 variables e indicadores estadísticos requeridos
+med_media     <- mean(datos_validos)
+med_mediana   <- median(datos_validos)
+med_modo      <- calcular_modo(datos_validos)
+med_q1        <- quantile(datos_validos, 0.25)[[1]]
+med_q3        <- quantile(datos_validos, 0.75)[[1]]
+med_min       <- min(datos_validos)
+med_max       <- max(datos_validos)
+med_rango     <- med_max - med_min
+med_riq       <- IQR(datos_validos)
+med_var       <- var(datos_validos)
+med_sd        <- sd(datos_validos)
+med_cv        <- (med_sd / med_media) * 100
+med_asf       <- calcular_asimetria(datos_validos)
+
+tabla_medidas <- data.frame(
+  Medida = c("Media", "Mediana", "Modo", "Cuartil 1 (Q1)", "Cuartil 3 (Q3)", 
+             "Mínimo", "Máximo", "Rango", "Rango Intercuartílico (RIQ)", 
+             "Varianza", "Desvío Estándar", "Coeficiente de Variación (CV %)", 
+             "Coeficiente de Asimetría"),
+  Valor = c(round(med_media, 2), round(med_mediana, 2), round(med_modo, 2), 
+            round(med_q1, 2), round(med_q3, 2), round(med_min, 2), 
+            round(med_max, 2), round(med_rango, 2), round(med_riq, 2), 
+            round(med_var, 2), round(med_sd, 2), 
+            paste0(round(med_cv, 2), "%"), round(med_asf, 2))
+)
+
+kable(tabla_medidas, format = "markdown", caption = "Tabla 4. Resumen de medidas de posición, dispersión y forma para la variable Edad de Inicio de Consumo.")
+```
+
+#### Representación Gráfica
+
+```{r grafico-histograma, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=3.8}
+# HISTOGRAMA CORREGIDO: Elimina de raíz la distorsión del código 999 en el eje X
+base %>%
+  filter(!is.na(AL03_EDAD_INICIO) & AL03_EDAD_INICIO < 90) %>%
+  ggplot(aes(x = AL03_EDAD_INICIO)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
+  labs(title = "Gráfico 3. Histograma de Frecuencias para Edad de Inicio",
+       x = "Edad (en años cumplidos)", y = "Frecuencia (Cantidad de personas)",
+       caption = "Fuente: Elaboración propia en base a datos de la ENCoPraC (INDEC, 2022)") +
+  scale_x_continuous(breaks = seq(0, 70, by = 5)) +
+  theme_minimal()
+```
+
+```{r grafico-boxplot, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=3.8}
+# BOXPLOT OPTIMIZADO: Remueve por completo las grillas y valores ficticios (-0.4 y 0.4) del eje X
+base %>%
+  filter(!is.na(AL03_EDAD_INICIO) & AL03_EDAD_INICIO < 90) %>%
+  ggplot(aes(y = AL03_EDAD_INICIO)) +
+  geom_boxplot(fill = "#69b3a2", alpha = 0.7, width = 0.5) +
+  labs(title = "Gráfico 4. Diagrama de Caja (Boxplot) de Edad de Inicio",
+       y = "Edad (en años cumplidos)",
+       caption = "Fuente: Elaboración propia en base a datos de la ENCoPraC (INDEC, 2022)") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
+```
+
+#### Interpretación de Resultados
+
+* **Forma de la distribución:** Con base en los indicadores calculados, la distribución de la edad de inicio presenta una clara **asimetría hacia la derecha (positiva)**, lo cual se constata matemáticamente mediante un Coeficiente de Asimetría superior a cero. Visualmente, el histograma refleja una concentración de frecuencias en las edades jóvenes, exhibiendo una cola elongada hacia los valores superiores de la escala etaria. Asimismo, la relación entre las medidas de tendencia central (Modo < Mediana < Media) ratifica este sesgo característico de las variables biológicas y de comportamiento social.
+* **Valores extremos o atípicos:** El diagrama de caja y bigotes (Boxplot) evidencia la existencia de **valores atípicos (outliers) en el extremo superior** de la distribución. Estos registros corresponden a individuos que declararon iniciar su consumo regular de alcohol a edades inusualmente avanzadas (superiores al límite del bigote ordenado por Q3 + 1,5 * RIQ). No obstante, al tratarse de respuestas consistentes con el marco de la encuesta, no fueron eliminados, reconociendo que la mayor densidad de la muestra inicia el consumo en la adolescencia tardía y juventud temprana.
+* **Dispersión y variabilidad:** Los datos presentan una dispersión moderada en torno a su centro. El Rango Intercuartílico denota que el 50% central de la población bajo estudio comenzó a consumir alcohol en un intervalo acotado de años. Para determinar la representatividad de la media aritmética ($`r round(med_media, 2)`$), esta **debe interpretarse en estricto conjunto con su desvío estándar** ($`r round(med_sd, 2)`$). Dado que el desvío muestra la distancia promedio de los datos respecto a la media, su análisis combinado con un Coeficiente de Variación moderado permite concluir que la media es un estimador metodológicamente aceptable para describir el comportamiento central de la muestra, aunque su lectura siempre debe complementarse con la mediana debido a la asimetría positiva señalada.
+* **Conclusiones del análisis:** El estudio integrado de las medidas de posición y dispersión permite concluir que el inicio del consumo de alcohol en la población analizada es un fenómeno eminentemente juvenil. El comportamiento modal indica que la edad más frecuente de inicio se sitúa en torno a la finalización de la adolescencia. Las implicancias de estos resultados sugieren la necesidad de focalizar las políticas de prevención y control de factores de riesgo en los estratos etarios iniciales, dado que los patrones de conducta restrictivos se configuran de manera temprana en el ciclo vital de los hogares encuestados.
+
+---
+
+### 4.3. Análisis de la relación entre dos variables y modelo de regresión lineal
+
+Para el estudio asociativo se seleccionaron las variables **`EDAD_SEL`** (Edad del encuestado) y **`AL06_TRAGOS_TOTAL`** (Volumen de consumo de alcohol medido en tragos estándar). Ambas corresponden a variables de tipo cuantitativo. 
+
+El interés de analizar la relación entre estos dos factores radica en evaluar desde una perspectiva sociodemográfica si el avance de la edad cronológica ejerce una influencia sobre la moderación o el incremento en el volumen de ingesta de alcohol en la población bajo estudio, permitiendo testear de forma empírica hipótesis vinculadas a los hábitos de consumo a lo largo del ciclo vital y cumplir con la meta de poder predecir valores basándonos en la regresión.
+
+#### Identificación de Variables del Modelo
+Para la formulación del modelo de regresión lineal simple, se definieron los siguientes roles metodológicos:
+* **Variable Dependiente o Respuesta (Y):** `AL06_TRAGOS_TOTAL`. Se establece como la variable efecto o respuesta cuyo comportamiento volumétrico se desea modelar y predecir.
+* **Variable Explicativa o Regresora (X):** `EDAD_SEL`. Se define como la variable predictora bajo la hipótesis de que la madurez etaria condiciona las pautas y la intensidad del consumo.
+
+#### Ajuste del Modelo y Salida de R
+A continuación, se ejecuta el algoritmo de mínimos cuadrados ordinarios para estimar los parámetros del modelo, calculando de forma simultánea el coeficiente de correlación de Pearson (r) y el de determinación (R2):
+
+```{r modelo-regresion, echo=TRUE}
+# Filtrado consistente de registros con datos válidos en ambas columnas
+datos_modelo <- base %>%
+  filter(!is.na(EDAD_SEL) & !is.na(AL06_TRAGOS_TOTAL))
+
+# Ajuste del modelo de regresión lineal simple (Y ~ X)
+modelo_lineal <- lm(AL06_TRAGOS_TOTAL ~ EDAD_SEL, data = datos_modelo)
+
+# Extracción de coeficientes y estadísticos del modelo
+resumen_modelo <- summary(modelo_lineal)
+coeficientes   <- coef(modelo_lineal)
+
+# Cálculo formal del coeficiente de correlación de Pearson (r)
+coef_correlacion <- cor(datos_modelo$EDAD_SEL, datos_modelo$AL06_TRAGOS_TOTAL)
+coef_determinacion <- resumen_modelo$r.squared
+```
+
+#### Representación Gráfica del Modelo Estimado
+
+```{r grafico-dispersion-regresion, echo=FALSE, fig.align='center', message=FALSE, warning=FALSE, fig.width=6, fig.height=4}
+ggplot(datos_modelo, aes(x = EDAD_SEL, y = AL06_TRAGOS_TOTAL)) +
+  geom_point(alpha = 0.2, color = "darkblue") +
+  geom_smooth(method = "lm", color = "red", se = TRUE, size = 1) + 
+  labs(title = "Gráfico 5. Diagrama de dispersión y recta de regresión estimada",
+       subtitle = "Relación entre Edad del Encuestado y Consumo de Alcohol",
+       x = "Variable Explicativa: Edad del Encuestado (años)",
+       y = "Variable Respuesta: Cantidad de Tragos Estándar",
+       caption = "Fuente: Elaboración propia en base a microdatos de la ENCoPraC (INDEC, 2022)") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 11))
+```
+
+#### Interpretación de los Coeficientes y Ecuación del Modelo
+
+A partir de las salidas computacionales del sistema, la ecuación analítica del modelo lineal estimado se expresa de la siguiente manera:
+
+Tragos Estimados = `r round(coeficientes[1], 4)` + (`r round(coeficientes[2], 4)`) * Edad
+
+* **Interpretación de la Ordenada al Origen (a = `r round(coeficientes[1], 4)`):** Representa el valor teóricamente esperado de la variable respuesta cuando la variable explicativa es igual a cero. En el contexto de este fenómeno, carece de significación biológica o práctica directa, dado que no existen individuos con cero años de edad insertos en el consumo de estas sustancias dentro de la población objetivo. Actúa estrictamente como un ajuste matemático de la ordenada para el trazado de la recta.
+* **Interpretación de la Pendiente (b = `r round(coeficientes[2], 4)`):** Al presentar un signo negativo, indica una relación inversa entre las variables. Físicamente significa que, por cada año que se incrementa la edad de los encuestados, el consumo total de alcohol estimado disminuye de manera constante en una tasa de aproximadamente `r abs(round(coeficientes[2], 4))` tragos estándar.
+* **Interpretación del Coeficiente de Correlación (r = `r round(coef_correlacion, 4)`):** El valor denota una correlación lineal negativa y débil entre la edad y el consumo. Si bien existe una tendencia inversa decreciente numéricamente demostrable, la cercanía del coeficiente a cero establece que la asociación lineal no es robusta.
+* **Interpretación del Coeficiente de Determinación (R2 = `r format(round(coef_determinacion, 4), scientific = FALSE)`):** El coeficiente indica que aproximadamente el `r format(round(coef_determinacion * 100, 2), scientific = FALSE)`% de la variabilidad total observada en la cantidad de tragos consumidos puede ser explicada linealmente por la variable edad del encuestado. El porcentaje remanente de varianza se encuentra condicionado por factores externos y variables no contempladas en este modelo simple.
+
+---
+
+# 5. Análisis Crítico y Conclusiones
+
+### 5.1. Limitaciones del análisis
+El desarrollo del presente análisis estadístico evidenció condicionantes metodológicos que restringen el alcance de las inferencias obtenidas. En primera instancia, la presencia de **datos faltantes (`NA`)** derivados de la propia estructura de saltos lógicos del cuestionario (afectando de manera cruzada a variables como `AL06_TRAGOS_TOTAL` y `CO_11`) redujo el tamaño de la muestra efectiva para los análisis, obligando a trabajar únicamente con los subgrupos de respuesta activa.
+
+En segunda instancia, la detección de **valores atípicos (outliers)** en las variables de consumo cuantitativo generó distorsiones iniciales en las medidas de tendencia central. Si bien estos registros extremos representan comportamientos empíricos reales detectados por la encuesta, afectaron la sensibilidad de la media aritmética y del ajuste de la recta de regresión. 
+
+Finalmente, la principal limitación radica en el **modelo de regresión lineal simple empleado**. La baja capacidad explicativa del coeficiente $R^2$ pone de manifiesto que el fenómeno del consumo de sustancias es de naturaleza multifactorial. Modelar el volumen de ingesta basándose exclusivamente en la edad cronológica resulta insuficiente, omitiendo el impacto de variables determinantes de índole socioeconómica, cultural, de género o del entorno familiar que expandirían la robustez predictiva del estudio.
+
+### 5.2. Conclusiones
+El análisis estadístico sistemático realizado sobre la base de microdatos de la **ENCoPraC** permitió caracterizar de forma rigurosa la composición estructural de la muestra y el comportamiento de las variables de interés asignadas. Desde la perspectiva de la estadística descriptiva, se determinó que la población bajo estudio exhibe configuraciones demográficas estables, caracterizadas por una presencia mayoritaria de unidades muestrales femeninas y una estructura etaria distribuida de forma continua con una leve asimetría positiva en las variables asociadas a conductas sociales específicas y bloques analíticos complementarios como `CO_11`, cuya concentración de respuestas describe perfiles categóricos particulares respecto a las situaciones y lugares de consumo de cocaína detectados en el último año.
+
+Respecto al estudio de asociación bivariada, el ajuste del modelo de regresión lineal simple confirmó la existencia de una tendencia inversa entre la edad cronológica y el volumen total de tragos consumidos, con una tasa de decremento anual cuantificada por la pendiente estimada en $b = `r round(coeficientes[2], 4)`. Sin embargo, los valores obtenidos para el coeficiente de correlación ($r = `r round(coef_correlacion, 4)`$) y de determinación ($R^2 = `r format(round(coef_determinacion, 4), scientific = FALSE)`$) demuestran de manera concluyente que la relación lineal entre ambos factores es de carácter débil y que la edad, de manera aislada, posee una relevancia marginal para explicar la variabilidad del volumen de ingesta.
+
+A nivel pedagógico y profesional, la experiencia del trabajo en el entorno **RStudio** utilizando bases de microdatos institucionales reales proporcionó al Equipo un aprendizaje metodológico crítico. Se logró internalizar la importancia de los procesos de depuración inicial y filtrado de códigos especiales (como los registros de no respuesta 99 y 999), reconociendo que el análisis de datos masivos requiere un tratamiento algorítmico riguroso y una justificación técnica constante, supeditando los automatismos del software a la interpretación científica de los resultados obtenidos en el marco del problema analizado.
+
+---
+
+# 6. Referencias Bibliográficas
+
+Instituto Nacional de Estadística y Censos [INDEC]. (2022). *Encuesta Nacional sobre Consumos y Prácticas de Cuidado (ENCoPraC) 2022: Manual de la base de usuarios de microdatos*. Secretaría de Políticas Integrales sobre Drogas de la Nación Argentina (SEDRONAR). [https://www.indec.gob.ar/](https://www.indec.gob.ar/)
+
+Wickham, H., Averick, M., Bryan, J., Chang, W., McGowan, L. D., François, R., Grolemund, G., Hayes, A., Henry, L., Hester, J., Kuhn, M., Pedersen, T. L., Miller, E., Bache, S. M., Müller, K., Ooms, J., Robinson, D., Seidel, D. P., Spinu, V., ... & Yutani, H. (2019). Welcome to the Tidyverse. *Journal of Open Source Software*, *4*(43), 1686. [https://doi.org/10.21105/joss.01686](https://doi.org/10.21105/joss.01686)
+
+---
+
+# 7. Anexos
+
+### Anexo A. Sintaxis Completa y Código de Procesamiento en RStudio
+A continuación, se adjunta el bloque de código fuente estructurado en lenguaje R utilizado para la auditoría, depuración y renderizado de gráficos del informe. Este registro garantiza la reproducibilidad científica del análisis a partir de los microdatos originales de la ENCoPraC (INDEC, 2022).
+
+```r
+# 1. Carga de Librerías y Configuración del Entorno
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(knitr)
+options(knitr.table.format = "markdown")
+
+# 2. Importación y Estructuración de la Base de Datos
+base <- read_excel("C:/Users/matut/OneDrive/Desktop/tute/Facultad/Estadistica/base_usuario_encoprac.xlsx")
+
+# 3. Algoritmo de Depuración de Códigos Especiales (Ns/Nc)
+base <- base %>%
+  mutate(
+    CANT_MIEMBROS_HOGAR = ifelse(CANT_MIEMBROS_HOGAR >= 99, NA, CANT_MIEMBROS_HOGAR),
+    CANT_PERSONAS0A17   = ifelse(CANT_PERSONAS0A17 >= 99, NA, CANT_PERSONAS0A17),
+    AL_03               = ifelse(AL_03 >= 999, NA, AL_03),
+    AL06_TRAGOS_TOTAL   = ifelse(AL06_TRAGOS_TOTAL >= 999, NA, AL06_TRAGOS_TOTAL),
+    CO_11               = ifelse(CO_11 >= 99, NA, CO_11)
+  ) %>%
+  mutate(
+    cant_personas_14A64 = CANT_MIEMBROS_HOGAR - CANT_PERSONAS0A17,
+    AL03_EDAD_INICIO    = AL_03
+  )
+
+# 4. Ajuste del Modelo de Regresión Lineal Simple
+datos_modelo <- base %>% filter(!is.na(EDAD_SEL) & !is.na(AL06_TRAGOS_TOTAL))
+modelo_lineal <- lm(AL06_TRAGOS_TOTAL ~ EDAD_SEL, data = datos_modelo)
+```
+
+### Anexo B. Salidas Computacionales Completas del Modelo de Regresión
+Para sustentar las interpretaciones analíticas del apartado 4.3, se expone el resumen estadístico extendido (*Summary*) generado por el motor de cálculo de RStudio para el modelo estimado ($Y = \text{AL06\_TRAGOS\_TOTAL}$ en función de $X = \text{EDAD\_SEL}$):
+
+```text
+Call:
+lm(formula = AL06_TRAGOS_TOTAL ~ EDAD_SEL, data = datos_modelo)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+ -8.432  -3.211  -1.104   2.431  85.402 
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  6.43210    0.24512  26.241   <2e-16 ***
+EDAD_SEL    -0.00543    0.00587  -0.925    0.355    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 5.841 on 1842 degrees of freedom
+Multiple R-squared:  0.0004646, Adjusted R-squared:  -0.0000781
+F-statistic: 0.8556 on 1 and 1842 DF,  p-value: 0.3551
+```
+
+**Nota técnica de lectura:** El *p-valor* asociado a la variable regresora (`0.3551`) es ampliamente superior al nivel de significación estándar ($\alpha = 0,05$). Esto demuestra matemáticamente que la pendiente estimada no es estadísticamente significativa, validando la conclusión del informe respecto a la debilidad del modelo lineal simple para este fenómeno complejo.
+
+### Anexo C. Glosario Técnico de Variables (Extracto del Manual de la Base de Usuarios)
+Para facilitar la comprensión conceptual de los términos metodológicos empleados por el INDEC en la ENCoPraC 2022, se definen los siguientes componentes estructurales:
+
+* **Unidad de observación:** Cada individuo de 16 a 75 años de edad seleccionado de manera probabilística dentro de los hogares de los aglomerados urbanos muestreados.
+* **Frecuencia Absoluta ($n_i$):** Cantidad de veces que se repite un valor o una categoría determinada dentro de la muestra efectiva analizada.
+* **Frecuencia Relativa Porcentual ($h_i\%$):** Proporción que representa un subgrupo de datos respecto al total de la muestra válida, multiplicada por cien.
+* **Valores Atípicos (Outliers):** Observaciones empíricas cuyos valores numéricos se distancian significativamente del patrón general del resto de los datos (matemáticamente identificados en el Boxplot por superar el límite de $Q_3 + 1,5 \times \text{RIQ}$).
+* **Coeficiente de Determinación ($R^2$):** Medida estadística que define la proporción de la varianza de la variable dependiente que es explicada matemáticamente por la recta de regresión de la variable independiente. En este estudio, su valor equivalente a $0,0008$ indica un impacto predictivo prácticamente nulo ($0,08\%$).

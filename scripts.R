@@ -6,41 +6,54 @@ View(base_usuario_encoprac)
 df %>%
   filter(AL_03 > 0 & AL_03 < 100) %>% 
   ggplot(aes(x = AL_03)) +
-  geom_histogram(binwidth = 1, fill = "#69b3a2", color = "white") +
-  labs(title = "Distribución de la Edad de Inicio de Consumo",
-       subtitle = "(Excluyendo valores perdidos o errores de carga)",
-       x = "Edad de Inicio",
-       y = "Cantidad de Personas") +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
+  labs(title = "Gráfico 1. Distribución de la edad de inicio de consumo",
+       subtitle = "Base ENCoPraC 2022",
+       x = "Edad de Inicio (en años)",
+       y = "Frecuencia (Cantidad de personas)",
+       caption = "Fuente: Elaboración propia en base a datos del INDEC (ENCoPraC 2022)") +
   theme_minimal()
 
 df %>%
-  filter(!is.na(SEXO_SEL)) %>%
-  ggplot(aes(x = as.factor(SEXO_SEL), fill = as.factor(SEXO_SEL))) +
-  geom_bar() +
+  filter(AL06_TRAGOS_TOTAL > 0 & AL06_TRAGOS_TOTAL < 100) %>% 
+  ggplot(aes(x = as.factor(SEXO_SEL), y = AL06_TRAGOS_TOTAL, fill = as.factor(SEXO_SEL))) +
+  geom_boxplot(alpha = 0.7) +
+  scale_fill_manual(values = c("1" = "#7570b3", "2" = "#1b9e77")) +
   scale_x_discrete(labels = c("1" = "Varón", "2" = "Mujer")) +
-  labs(title = "Distribución por Sexo", x = "Sexo", y = "Frecuencia") +
+  labs(title = "Gráfico 2. Distribución de consumo de alcohol por sexo",
+       subtitle = "Base ENCoPraC 2022",
+       x = "Sexo",
+       y = "En cantidad de tragos",
+       caption = "Fuente: Elaboración propia en base a datos del INDEC (ENCoPraC 2022)") +
   theme_minimal() +
-  guides(fill = "none")
+  theme(legend.position = "none")
 
 ggplot(df, aes(x = EDAD_SEL)) +
-  geom_histogram(binwidth = 5, fill = "steelblue", color = "white") +
-  labs(title = "Distribución de Edades de la Muestra",
-       x = "Edad (EDAD_SEL)",
-       y = "Frecuencia") +
+  geom_histogram(binwidth = 5, fill = "gray40", color = "white") +
+  labs(title = "Gráfico 3. Distribución de edades de los encuestados",
+       subtitle = "Base ENCoPraC 2022",
+       x = "Edad (en años)",
+       y = "Frecuencia",
+       caption = "Fuente: Elaboración propia en base a datos del INDEC (ENCoPraC 2022)") +
+  theme_minimal()
+
+ggplot(df, aes(x = CANT_MIEMBROS_HOGAR)) +
+  geom_bar(fill = "#d95f02", alpha = 0.8) +
+  labs(title = "Gráfico 4. Cantidad de miembros por hogar encuestado",
+       subtitle = "Base ENCoPraC 2022",
+       x = "Número de personas",
+       y = "Frecuencia",
+       caption = "Fuente: Elaboración propia en base a datos del INDEC (ENCoPraC 2022)") +
   theme_minimal()
 
 df %>%
-  filter(AL06_TRAGOS_TOTAL > 0 & AL06_TRAGOS_TOTAL < 50) %>%
-  ggplot(aes(y = AL06_TRAGOS_TOTAL)) +
-  geom_boxplot(fill = "tomato", alpha = 0.7) +
-  labs(title = "Dispersión de Tragos Totales",
-       subtitle = "(Filtrado: menos de 50 tragos)",
-       y = "Cantidad de Tragos") +
-  theme_light()
-
-ggplot(df, aes(x = CANT_MIEMBROS_HOGAR)) +
-  geom_bar(fill = "purple", alpha = 0.7) +
-  labs(title = "Cantidad de Miembros en el Hogar",
-       x = "Número de Personas",
-       y = "Frecuencia") +
+  filter(AL06_TRAGOS_TOTAL > 0 & AL06_TRAGOS_TOTAL < 100) %>%
+  ggplot(aes(x = EDAD_SEL, y = AL06_TRAGOS_TOTAL)) +
+  geom_point(alpha = 0.3, color = "darkblue") +
+  geom_smooth(method = "lm", color = "red", se = TRUE) + # Línea de Regresión
+  labs(title = "Gráfico 5. Correlación entre Edad del Encuestado y Consumo Total",
+       subtitle = "Análisis de Regresión Lineal - Base ENCoPraC 2022",
+       x = "Edad (EDAD_SEL)",
+       y = "Cantidad de Tragos",
+       caption = "Fuente: Elaboración propia en base a datos del INDEC (ENCoPraC 2022)") +
   theme_minimal()
